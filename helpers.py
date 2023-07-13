@@ -21,7 +21,12 @@ def eval_array(array):
             element = eval(element)
     return array
 
-def make_api_msg(query, data, content = "Nessun dato recuperato", first_time = True):
+def ApiMsg_Docs(content):
+    with st.chat_message('API', avatar="🤖"):
+        st.write(content)
+
+
+def ApiMsg_SQL(query, data, content = "Nessun dato recuperato", first_time = True):
     with st.chat_message('API', avatar="🤖"):
         #conversione di stringhe di dati in array
         if type(data) == str:
@@ -56,12 +61,19 @@ def make_api_msg(query, data, content = "Nessun dato recuperato", first_time = T
             st.table(df)
 
 #a ogni refresh tutti i messaggi devono essere visualizzati nuovamente            
-def message_reload():
-    for message in st.session_state.messages:
-        if message["role"] == "User":
-            make_usr_message(message["content"])
-        else:
-            make_api_msg(message["query"], message["dataframe"], message["content"], first_time=False)
+def message_reload(type):
+    if type == "SQL":
+        for message in st.session_state.messages:
+            if message["role"] == "User":
+                make_usr_message(message["content"])
+            else:
+                ApiMsg_SQL(message["query"], message["dataframe"], message["content"], first_time=False)
+    else:
+        for message in st.session_state.chat:
+            if message["role"] == "User" and message["content"] != "" and message["content"] != False:
+                make_usr_message(message["content"])
+            else:
+                ApiMsg_Docs(message["content"])
 
 def response_to_dataframe(out_columns, data):
     try:
