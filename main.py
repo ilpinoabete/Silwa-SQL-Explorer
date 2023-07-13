@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from helpers import check_login
-from apiRequests import  make_sql_request, comment_response
+from apiRequests import  make_sql_request, comment_response, make_sql_request_json
 from fastapi.middleware.cors import CORSMiddleware
 
 # Create the FastAPI app
@@ -48,3 +48,12 @@ def get_response(query :str, data, id :str):
             return{ 'Error' : str(exp)}
     else:
         return "Error: Login id not valid"
+
+@app.get("/api/SILWA_json/{query}")
+def get_response(query :str):
+
+    try:
+        return make_sql_request_json(query)
+
+    except Exception as exp:
+        return{ 'Error' : str(exp)}
