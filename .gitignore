@@ -1,4 +1,7 @@
 .env
 __pycache__
 __init__.py
-streamlit.exe
+uvicorn.exe
+PrettierLogs.cv
+QueryLogs.csv
+CommentLogs.csv

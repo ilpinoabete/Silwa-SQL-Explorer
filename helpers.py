@@ -1,87 +1,89 @@
-import streamlit as st
-import pandas as pd
-import requests
+import os
 import csv
+import pandas as pd
+import pypyodbc as db
+from dotenv import load_dotenv
 
-#Logging delle eccezioni
-def log_exception(process, error):
-    with open("Exceptions.csv", "a", newline='') as file:
+
+#logs of the queries and the comments
+
+def log_query(query, request, complete_query):
+    with open("QueryLogs.csv", "a", newline='') as file:
         writer = csv.writer(file, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        writer.writerow([process, error])
+        writer.writerow([query, request, complete_query])
         writer.writerow([" "])
 
-def make_usr_message(content):
-    with st.chat_message('user', avatar="🧑‍💻"):
-        st.write(content)
+def comment_query(query, response, data_frame):
+    with open("CommentLogs.csv", "a", newline='') as file:
+        writer = csv.writer(file, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow([query, response, data_frame])
+        writer.writerow([" "])
 
-#conversioni di stringhe del tipo "[]" in array
-def eval_array(array):
-    for element in array:
-        if type(element) == str:
-            element = eval(element)
-    return array
+#functions that parse the response of the openai api using the tag <tag> and </tag> and removing the \n \t \r and \	
 
-def make_api_msg(query, data, content = "Nessun dato recuperato", first_time = True):
-    with st.chat_message('API', avatar="🤖"):
-        #conversione di stringhe di dati in array
-        if type(data) == str:
-            data= eval(data)
-        data = eval_array(data)
-        
-        #controllo che la query a SQL abbia fornito dei dati
-        if data[1] != []:
-            data[1] = eval_array(data[1])
+def parse_response(response, init_subStr = "<tag>", end_subStr = "</tag>"):
+    response = response.replace(str(init_subStr), "$")
+    response = response.replace(str(end_subStr), "$")
+    start = 0
+    end = 0
 
-            #creazione del dataframe da visualizzare
-            df = response_to_dataframe(data[0], data[1])
+    for i in range(len(response)):
+        if(response[i] == "$"):
+            start = i + 1
+            break
+    
+    j = len(response)-1
+    while j > 0:
+        if(response[j] == "$"):
+            end = j
+            break
+        j -= 1
+    response = str(response[start:end])
+    response = response.replace('\\n', ' ')
+    response = response.replace('\\t', ' ')
+    response = response.replace('\\r', ' ')
+    response = response.replace('\\', ' ')
+    return response
 
-            #aggiunta del messaggio alla history (viene eseguito solo una volta)
-            if first_time:
-                with st.spinner("Analyzing response"):
-                    content = str(requests.get(f"http://localhost:8000/api/CommentResponse/{query}?data={df}&id={st.session_state.logged}").text) #chiamata a chatgpt per data
-                    
-                    content = content.replace('\\n', ' ')
-                    content = content.replace('\\t', ' ')
-                    content = content.replace('\\r', ' ')
-                    content = content.replace('\\', ' ')
+#create the connection to the database
 
-                    st.session_state.messages.append({"role":"API", "query":query, "dataframe":data, "content": content})
-        elif first_time:
-            st.session_state.messages.append({"role":"API", "query":query, "dataframe":data, "content": content})
- 
-        #visualizzazione del messaggio e dei dati         
-        st.write(content)
+def create_conn():
+    load_dotenv()
 
-        if data[1] != []:
-            st.table(df)
+    SERVER_NAME = os.getenv('SERVER_NAME')
+    DB_NAME = os.getenv('DB_NAME')
+    USERNAME = os.getenv('UID')
+    PASSWORD = os.getenv('PASS')
 
-#a ogni refresh tutti i messaggi devono essere visualizzati nuovamente            
-def message_reload():
-    for message in st.session_state.messages:
-        if message["role"] == "User":
-            make_usr_message(message["content"])
-        else:
-            make_api_msg(message["query"], message["dataframe"], message["content"], first_time=False)
+    conn_string = "Driver={ODBC Driver 18 for SQL Server};Server=" + SERVER_NAME + ";Database="+ DB_NAME +";Trusted_Connection=yes;TrustServerCertificate=yes;"
 
-def response_to_dataframe(out_columns, data):
-    try:
+    return db.connect(conn_string)
 
-        #eliminazione di eventuali colonne duplicate che genererebbero un errore nella creazione del dataframe
-        if out_columns != [] and data != []:
-            unique_columns = []
-            index = 0
+#function that returns the tables, the columns and their datatypes of the database
 
-            for element in out_columns:
-                if element not in unique_columns:
-                    unique_columns.append(element)
-                else:
-                    for row in data:
-                        del row[index]
-                index +=1
+def get_datatype(table_name):
+    load_dotenv()
+    connection = create_conn()
+    cursor = connection.cursor()
 
-            return pd.DataFrame(data=data, columns=unique_columns)
-        else:
-            return pd.DataFrame()
-        
-    except Exception as exception:
-        log_exception("Response to DataFrame ", exception)
+    cursor.execute(f"""SELECT COLUMN_NAME, COLUMN_DEFAULT, DATA_TYPE
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_NAME = '{table_name}';
+    """)
+    types = cursor.fetchall()
+    columns = ['COLUMN_NAME', 'COLUMN_DEFAULT', 'DATA_TYPE']
+
+    return pd.DataFrame(types, columns=columns)
+
+#check if the login id is in the users dictionary
+
+def check_login(login_id):
+    load_dotenv()
+    users = eval(os.getenv('USERS'))
+
+    for user in users:
+        if user["Id"] == login_id:
+            return True
+
+    return False
+
