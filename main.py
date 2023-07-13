@@ -1,10 +1,11 @@
-from dotenv import load_dotenv
-load_dotenv()
 import os
 import requests
 import streamlit as st
-from auth import user_login, user_logout
+from auth import user_login
+from dotenv import load_dotenv
 from helpers import make_usr_message, message_reload, ApiMsg_Docs, ApiMsg_SQL
+
+load_dotenv()
 
 #default page settings
 st.set_page_config(

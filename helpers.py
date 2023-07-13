@@ -11,8 +11,9 @@ def log_exception(process, error):
         writer.writerow([" "])
 
 def make_usr_message(content):
-    with st.chat_message('user', avatar="🧑‍💻"):
-        st.write(content)
+    if str(content) != "False" and str(content) != "":
+        with st.chat_message('user', avatar="🧑‍💻"):
+            st.write(content)
 
 #conversioni di stringhe del tipo "[]" in array
 def eval_array(array):
@@ -70,7 +71,7 @@ def message_reload(type):
                 ApiMsg_SQL(message["query"], message["dataframe"], message["content"], first_time=False)
     else:
         for message in st.session_state.chat:
-            if message["role"] == "User" and message["content"] != "" and message["content"] != False:
+            if message["role"] == "User":
                 make_usr_message(message["content"])
             else:
                 ApiMsg_Docs(message["content"])
