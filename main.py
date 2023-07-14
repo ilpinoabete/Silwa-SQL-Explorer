@@ -78,7 +78,7 @@ def index():
                 except Exception as exception:
                     print(f"Error in GetContext: {exception}")
 
-        if prompt and ((search_method == 'SQL' and st.session_state.autoContext) or (autoIndex == '0' and st.session_state.autoContext)):
+        if prompt and ((search_method == 'SQL' and not st.session_state.autoContext) or (autoIndex == '0' and st.session_state.autoContext)):
             make_usr_message(prompt)
 
             col1, center_col, col2 = st.columns(3)
@@ -94,7 +94,7 @@ def index():
             #creazione del messaggio di risposta
             ApiMsg_SQL(prompt, response)
 
-        elif prompt and ((search_method == 'Docs' and st.session_state.autoContext) or (autoIndex == '1' and st.session_state.autoContext)):
+        elif prompt and ((search_method == 'Docs' and not st.session_state.autoContext) or (autoIndex == '1' and st.session_state.autoContext)):
             make_usr_message(False)
             make_usr_message(prompt)
 
