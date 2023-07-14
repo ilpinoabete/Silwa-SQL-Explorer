@@ -64,13 +64,15 @@ def index():
             with center_col:
                 with st.spinner("Getting response"):
                     #chiamata a chatgpt per risposta
-                    indexes = []
-                    index = ""
-                    useAllIndexes = False
+                    indexes = ['documentazione', 'innova', 'mondialforni']
+                    index = "documentazione"
+                    useAllIndexes = True
 
-                    response =requests.post(f"http://192.168.1.46:5000/askChatGPT", 
-                                            data={"query":prompt, "possibleIndexes": indexes, "index":index, "useAllIndexes":useAllIndexes}
+                    response =requests.post(f"http://localhost:5000/askChatGPT", 
+                                            json={"query":prompt, "possibleIndexes": indexes, "index":index, "useAllIndexes":useAllIndexes}
                                             )
+                    
+                    print(response.status_code)
 
                     #aggiunta del messaggio alla history
                     st.session_state.chat.append({"role":"User", "content":prompt})
@@ -78,7 +80,7 @@ def index():
             #creazione del messaggio di risposta
             if response.status_code == 200:
                 st.session_state.chat.append({"role":"API", "content":response.json()["data"]})
-                ApiMsg_Docs(prompt, response.json()["data"])
+                ApiMsg_Docs(response.json()["data"])
 
             else:
                 with st.chat_message('API', avatar="🤖"):
@@ -107,7 +109,6 @@ def auth(login = True):
 
 if "logged" not in st.session_state:
     id = os.getenv("ID")
-    print(f"ID: {id}")
 
     if id != "":
         st.session_state.logged = id
