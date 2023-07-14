@@ -9,10 +9,6 @@ url = os.getenv("SUPABASE_URL")
 key = os.getenv("SUPABASE_KEY")
 Client = create_client(url, key)
 
-#credenziali di accesso id default
-#email: str = "cristianotollot@gmail.com"
-#password: str = "test1234"
-
 def user_login(email, password):
     try:
         #login
