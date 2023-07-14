@@ -77,7 +77,8 @@ def index():
                     autoIndex = requests.get(f"http://localhost:8000/api/GetContext/{prompt}").text
                 except Exception as exception:
                     print(f"Error in GetContext: {exception}")
-
+        
+        #La logica è da sistemare
         if prompt and ((search_method == 'SQL' and not st.session_state.autoContext) or (autoIndex == '0' and st.session_state.autoContext)):
             make_usr_message(prompt)
 
@@ -94,6 +95,7 @@ def index():
             #creazione del messaggio di risposta
             ApiMsg_SQL(prompt, response)
 
+        #La logica è da sistemare
         elif prompt and ((search_method == 'Docs' and not st.session_state.autoContext) or (autoIndex == '1' and st.session_state.autoContext)):
             make_usr_message(False)
             make_usr_message(prompt)
