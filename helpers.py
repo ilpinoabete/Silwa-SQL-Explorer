@@ -60,6 +60,7 @@ def ApiMsg_SQL(query, data, content = "Nessun dato recuperato", first_time = Tru
 
         if data[1] != []:
             st.table(df)
+            st.download_button("Scarica i dati in formato CSV", df.to_csv(index=False), f"{query.replace(' ', '_')}.csv", "text/csv", use_container_width=True)
 
 #a ogni refresh tutti i messaggi devono essere visualizzati nuovamente            
 def message_reload(type):

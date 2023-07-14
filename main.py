@@ -23,6 +23,26 @@ def sidebar():
     with st.sidebar:
         search_method = st.selectbox("Seleziona metodo di ricerca", ["SQL", "Docs"])
 
+        if search_method == "Docs":
+                st.divider()
+
+                st.session_state.useAllIndexes = st.checkbox("Usa tutti gli indici")
+
+                if not st.session_state.useAllIndexes:
+
+                    if len(st.session_state.indexes) == 0:
+                        data = requests.get(f"http://localhost:4000/sql/{st.session_state.logged}").json()["data"]
+
+                        for index in data:
+                            st.session_state.indexes.append(index["IndexId"])
+                            
+                    st.session_state.index = st.selectbox("Seleziona indice", st.session_state.indexes)
+
+
+        
+
+
+
 #main page
 def index():
         #inizializzazione della cronologia dei messaggi
@@ -31,6 +51,15 @@ def index():
 
         if 'chat' not in st.session_state:
             st.session_state.chat = []
+        
+        if 'indexes' not in st.session_state:
+            st.session_state.indexes = []
+        
+        if 'index' not in st.session_state:
+            st.session_state.index = ""
+
+        if 'useAllIndexes' not in st.session_state:
+            st.session_state.useAllIndexes = False
 
         st.markdown("<h1 style='text-align: center;'>ChatGPT integration for silwa</h1>", unsafe_allow_html=True)
         
@@ -64,12 +93,9 @@ def index():
             with center_col:
                 with st.spinner("Getting response"):
                     #chiamata a chatgpt per risposta
-                    indexes = ['documentazione', 'innova', 'mondialforni']
-                    index = "documentazione"
-                    useAllIndexes = True
 
                     response =requests.post(f"http://localhost:5000/askChatGPT", 
-                                            json={"query":prompt, "possibleIndexes": indexes, "index":index, "useAllIndexes":useAllIndexes}
+                                            json={"query":prompt, "possibleIndexes": st.session_state.indexes, "index":st.session_state.index, "useAllIndexes":st.session_state.useAllIndexes}
                                             )
                     
                     print(response.status_code)
@@ -89,7 +115,6 @@ def index():
                     st.session_state.chat.append({"role":"API", "content":errMsg})
                     st.write(errMsg)
         
-
 #login page
 def auth(login = True):
 
