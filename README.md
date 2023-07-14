@@ -13,6 +13,7 @@ Entrambe le API sono state sviluppate in python attraverso la libreria [fastapi]
 
 * SUPABASE_KEY (key dell'app di supabase)
 * SUPABASE_URL (url dell'app di supabase)
+* ID (id dell'utente utilizzato per l'utenticazione)
 
 # Vantaggi e svantaggi delle API:
 
