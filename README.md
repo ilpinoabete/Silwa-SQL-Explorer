@@ -9,6 +9,21 @@ Attualmente askChatGPT non è disponibile.
 
 Entrambe le API sono state sviluppate in python attraverso la libreria [fastapi](https://fastapi.tiangolo.com/) mentre il front end è stato realizzato grazie alla libreria [streamlit](https://docs.streamlit.io/)
 
+# Cosa contiene il .env
+
+DRIVER_NAME={ODBC Driver 18 for SQL Server}
+SERVER_NAME (nome del server SQL in cui fare le query)
+DB_NAME (nome del database SQL)
+UID (SQL username)
+PASS (SQL password)
+
+USERS = [
+{"Name":username1, "Id":Identificativo_univoco1},
+{"Name":username2, "Id":Identificativo_univoco2}
+]
+
+OPENAI_KEY (openai api key)
+
 # Vantaggi e svantaggi delle API:
 
 ## askChatGPT
