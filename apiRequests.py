@@ -4,7 +4,7 @@ import json
 import openai
 from dotenv import load_dotenv
 from helpers import parse_response,  create_conn, log_query, comment_query
-from Const import SQL_REQUEST, SQL_SINTAX
+from Const import SQL_REQUEST, SQL_SINTAX, SINTAX
 
 #credentials for openai api
 openai.api_key = os.getenv('OPENAI_KEY')
@@ -103,6 +103,26 @@ def comment_response(init_query, data_frame):
         comment_query(query, response, data_frame)
 
         return response
+    except Exception as exc:
+        return (f"Error in comment: {str(exc)}")
+
+#function that use openai api to get the context of the user query
+def get_context(query):
+    query = f"Data questa query: {query}\nSe la query è su dati provenienti da un magazzino rispondi 0, se invece sulla documentazione di un software rispondi 1\n{SINTAX}"
+
+    try:
+        response = openai.ChatCompletion.create(
+                model='gpt-3.5-turbo',
+                messages=[
+                    {"role": "system", "content": "You are chat assistant"},
+                    {"role": "user", "content": query}
+                ],
+                temperature = 1
+            )
+        response = str(response['choices'][0]['message']["content"])
+
         return response
     except Exception as exc:
         return (f"Error in comment: {str(exc)}")
+
+print(get_context("Cos'è una missione"))
