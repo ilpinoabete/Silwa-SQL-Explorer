@@ -26,7 +26,7 @@ def sidebar():
         if search_method == "Docs":
                 st.divider()
 
-                st.session_state.useAllIndexes = st.checkbox("Usa tutti gli indici")
+                st.session_state.useAllIndexes = st.checkbox("Usa tutti gli indici", value=False)
 
                 if not st.session_state.useAllIndexes:
 
