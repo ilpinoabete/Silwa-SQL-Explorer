@@ -97,8 +97,6 @@ def index():
                     response =requests.post(f"http://localhost:5000/askChatGPT", 
                                             json={"query":prompt, "possibleIndexes": st.session_state.indexes, "index":st.session_state.index, "useAllIndexes":st.session_state.useAllIndexes}
                                             )
-                    
-                    print(response.status_code)
 
                     #aggiunta del messaggio alla history
                     st.session_state.chat.append({"role":"User", "content":prompt})
