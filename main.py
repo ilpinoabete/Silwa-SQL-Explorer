@@ -21,12 +21,14 @@ def sidebar():
     global search_method
 
     with st.sidebar:
+        st.session_state.autoContext = st.checkbox("Auto context", value=False)
+
         search_method = st.selectbox("Seleziona metodo di ricerca", ["SQL", "Docs"])
 
         if search_method == "Docs":
                 st.divider()
 
-                st.session_state.useAllIndexes = st.checkbox("Usa tutti gli indici", value=False)
+                st.session_state.useAllIndexes = st.checkbox("Usa tutti gli indici", value=True)
 
                 if not st.session_state.useAllIndexes:
 
@@ -38,14 +40,12 @@ def sidebar():
                             
                     st.session_state.index = st.selectbox("Seleziona indice", st.session_state.indexes)
 
-
-        
-
-
-
 #main page
 def index():
-        #inizializzazione della cronologia dei messaggi
+        global autoIndex
+        autoIndex = -1
+
+        #inizializzazione delle variabili d'ambiente
         if 'messages' not in st.session_state: 
             st.session_state.messages = []
 
@@ -59,7 +59,10 @@ def index():
             st.session_state.index = ""
 
         if 'useAllIndexes' not in st.session_state:
-            st.session_state.useAllIndexes = False
+            st.session_state.useAllIndexes = True
+
+        if 'autoContext' not in st.session_state:
+            st.session_state.autoContext = False
 
         st.markdown("<h1 style='text-align: center;'>ChatGPT integration for silwa</h1>", unsafe_allow_html=True)
         
@@ -68,7 +71,14 @@ def index():
 
         prompt = st.chat_input("Here goes your question")
 
-        if prompt and search_method == "SQL":
+        with st.spinner("Analyzing question"):
+            if st.session_state.autoContext and prompt:
+                try:
+                    autoIndex = requests.get(f"http://localhost:8000/api/GetContext/{prompt}").text
+                except Exception as exception:
+                    print(f"Error in GetContext: {exception}")
+
+        if prompt and ((search_method == 'SQL' and st.session_state.autoContext) or (autoIndex == '0' and st.session_state.autoContext)):
             make_usr_message(prompt)
 
             col1, center_col, col2 = st.columns(3)
@@ -76,7 +86,7 @@ def index():
             with center_col:
                 with st.spinner("Getting response"):
                     #chiamata a chatgpt per risposta
-                    response = str(requests.get(f"http://localhost:8000/api/SILWA/{prompt.replace(' ', '%20')}?id={st.session_state.logged}").text)
+                    response = str(requests.get(f"http://localhost:8000/api/SILWA/{prompt}?id={st.session_state.logged}").text)
 
                     #aggiunta del messaggio alla history
                     st.session_state.messages.append({"role":"User", "content":prompt})
@@ -84,7 +94,7 @@ def index():
             #creazione del messaggio di risposta
             ApiMsg_SQL(prompt, response)
 
-        if prompt and search_method == "Docs":
+        elif prompt and ((search_method == 'Docs' and st.session_state.autoContext) or (autoIndex == '1' and st.session_state.autoContext)):
             make_usr_message(False)
             make_usr_message(prompt)
 
