@@ -2,10 +2,8 @@
 
 Questo branch della repo è composto da due distinte api:
 
-- askChatGPT: l'api che si occupa di generare una query per azure cognitive search, i cui dati vengono integrati nel prompt iniziale per la richiesta ad openai
+- askChatGPT: l'api che si occupava di generare una query per azure cognitive search, i cui dati venivano integrati nel prompt iniziale per la richiesta ad openai. Il suo sviluppo è stato abbandonato in favore della creazione dell'api silwa più veloce e affidabile.
 -  silwa: l'api che si occupa di generare una query per SQL con la quale vengono ottenuti i dati da aggiungere al prompt della richiesta a openai
-
-Attualmente askChatGPT non è disponibile.
 
 Entrambe le API sono state sviluppate in python attraverso la libreria [fastapi](https://fastapi.tiangolo.com/) mentre il front end è stato realizzato grazie alla libreria [streamlit](https://docs.streamlit.io/)
 
@@ -22,11 +20,13 @@ Entrambe le API sono state sviluppate in python attraverso la libreria [fastapi]
 {"Name":username2, "Id":Identificativo_univoco2}
 ]
 
+  (Per ora la gestione degli utenti non è automatizzata per cui per crearne di nuovi è necessario modificare direttamente il .env)
+  
 * OPENAI_KEY (openai api key)
 
 # Vantaggi e svantaggi delle API:
 
-## askChatGPT
+## askChatGPT (depracated)
 * Vantaggi: 
     * Riesce a selezionare i dati più intelligentemente, grazie all'utilizzo di cognitive search
     * Non è limitata solo alle tabelle relazionali di SQL ma le informazioni posso essere ricercate anche in blob come documenti PDF.
