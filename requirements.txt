@@ -1,0 +1,6 @@
+python-socketio
+python-dotenv
+pypyodbc
+fastapi
+pandas
+openai
