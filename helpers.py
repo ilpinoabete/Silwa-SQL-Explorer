@@ -47,7 +47,7 @@ def parse_response(response, init_subStr="```sql", end_subStr="```"):
 # Function that connects to the database
 def connect_to_db(Driver, Server, Database, Uid, Pwd):
     try:
-        connection = db.connect(f'Driver={Driver};Server={Server};Database={Database};UID={Uid};PWD={Pwd}')
+        connection = db.connect(f'Driver={Driver};Server={Server};Database={Database};UID={Uid};PWD={Pwd}; TrustCertificateConnection=YES')
         if connection is not None:
             return connection
         else:
@@ -64,6 +64,7 @@ def get_cursor(Uid, Db):
     DB_NAME = os.getenv('DB_NAME')
     UID = os.getenv('UID')
     PWD = os.getenv('PASS')
+
 
     try:
     
@@ -84,11 +85,11 @@ def get_cursor(Uid, Db):
         else:
             resposnse = resposnse[0]
 
-            SERVER_NAME = resposnse[0]
-            DRIVER_NAME = resposnse[1]
-            DB_NAME = resposnse[2]
-            UID = resposnse[3]
-            PWD = resposnse[4]
+            SERVER_NAME = "LAPTOP-LC163VAE\SQLEXPRESS"
+            DRIVER_NAME = "{SQL Server}"
+            DB_NAME = "ai-integration-db"
+            UID = "sa"
+            PWD = "silwa!01"
 
 
             # Getting the connection to the database that the user is allowed to access
@@ -164,17 +165,11 @@ def get_table_info(table_name, cursor):
 
 
 # Function that sends a response chunk to the frontend
-async def send_response(response, client_socket, error=False):
+async def send_response(response, client_socket, event = "err"):
     try:
         # If the response is not an error and it is not empty, send it to the frontend
-        if not error:
-                if response is not None or response != "":
-                    await client_socket.emit("SqlExplorerResponse", response if type(response[1]) == str else "DONE")
-                else:
-                    client_socket.emit("SqlExplorerResponse", "DONE")
-        # If the response is an error, send it to the frontend with the error flag
-        else:
-            await client_socket.emit("err", response)
+        await client_socket.emit("SqlExplorerResponse", response if str(response[0]) != "None" else "DONE")
+        
     except Exception as exp:
             logger.error(f"Error sending response {exp}", exc_info=True)
 

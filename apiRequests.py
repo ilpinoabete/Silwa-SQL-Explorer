@@ -33,7 +33,7 @@ def get_sql_query(query_utente, data, db_info, cursor):
                 {"role": "assistant", "content": f"{f'This is the message history, use it to get the context of the conversation and to avoid repeating the same errors: {user_msgs}' if user_msgs else ''}. Note that the user may change his questions so use these data only if the topic of the conversation is the same" },
                 {"role": "user", "content": query}
             ],
-            temperature=0.3
+            temperature=0.2
         ))
         
         # Return the sanitized and parsed query 
@@ -80,9 +80,9 @@ async def comment_response(comment_data, query_sql, data, client_socket, db_info
             # Send each chunk of the response stream to the client
             for chunk in stream:
                 response += str(chunk.choices[0].delta.content)
-                await send_response([chunk.choices[0].delta.content, query_utente, variant], client_socket)
+                await send_response([chunk.choices[0].delta.content, query_utente, variant], client_socket, 'SqlExplorerResponse')
                 
-            await send_response("---------------------------\n" + response, client_socket)
+            await send_response("---------------------------\n" + response, client_socket, 'SqlExplorerResponse')
 
             # Return the response for it to be added in the messages history
             return response
@@ -92,7 +92,7 @@ async def comment_response(comment_data, query_sql, data, client_socket, db_info
         
     except RateLimitError:
         logger.error(f"Rate limit error")
-        await send_response(["Ci sono troppi dati a riguardo, puoi essere più specifico?", query_utente, variant], client_socket, error=True)
+        await send_response(["Ci sono troppi dati a riguardo, puoi essere più specifico?", query_utente, variant], client_socket)
 
     except Exception as exc:
         logger.error(f"Error generating comment response for query: {query_utente} with data: {comment_data}", exc_info=True)
@@ -101,11 +101,6 @@ async def comment_response(comment_data, query_sql, data, client_socket, db_info
 
 # Function that executes the SQL request
 async def make_sql_request(data, api_cursor, sio):
-    # Sanity check
-    if data["query"] == "":
-        send_response("", sio)
-        raise Exception("Empty query")
-
     # Initialize used variables
     query_utente = data["query"]
     variant = data["type"]
@@ -113,7 +108,12 @@ async def make_sql_request(data, api_cursor, sio):
     cursor = api_cursor
     client_socket = sio
     db_info = str(get_db_info(cursor))
-
+    
+    # Sanity check
+    if query_utente == "":
+        send_response("Empty query", sio)
+        raise Exception("Empty query")
+    
     try:
         # Get the SQL query
         query_sql = get_sql_query(query_utente, data, db_info, cursor)
@@ -160,6 +160,12 @@ async def make_sql_request(data, api_cursor, sio):
 
 # Function that uses OpenAI API to generate a screenshot helper
 async def get_screenshot_help(data, client_socket):
+    # Sanity check
+    if data["query"] == "":
+        send_response("Empty query", client_socket)
+        raise Exception("Empty query")
+    
+    
     response = ""
     with open(data["img"], "rb") as img_file:
         b64_img = base64.b64encode(img_file.read()).decode("utf-8")
@@ -192,19 +198,19 @@ async def get_screenshot_help(data, client_socket):
 
     for chunk in stream:
         response += str(chunk.choices[0].delta.content)
-        await send_response([chunk.choices[0].delta.content, data["query"], data["type"]], client_socket)
+        await send_response([chunk.choices[0].delta.content, data["query"], data["type"]], client_socket, 'ScreenshotHelperResponse')
 
     history_data = {
-            "uid" : data["uid"],
+            "user" : data["user"],
             "query_utente" : data["query"],
             "query_sql" : "",
             "response" : response,
             "img" : data["img"]
         }
     
-    append_previous_msgs(history_data, previous_msgs)
+    append_previous_msgs(history_data)
     
-    await send_response("---------------------------\n" + response, client_socket)
+    await send_response("---------------------------\n" + response, client_socket, 'ScreenshotHelperResponse')
         
     return response
 

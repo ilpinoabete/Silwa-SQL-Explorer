@@ -40,7 +40,7 @@ async def connect(sid, environ):
     
     
 @sio.event
-async def disconnect(sid):
+async def disconnect(sid, environ):
     if client_environments[sid]:
         delete_history(environ['REMOTE_ADDR'])
         del client_environments[sid]
@@ -58,7 +58,7 @@ async def SqlExplorer(sid, data):
             raise Exception("Authentication error")
             
     except Exception as exp:
-        await send_response([str(exp), data["query"], type], sio, error=True)
+        await send_response([str(exp), data["query"], data["type"]], sio)
 
 
 @sio.on("ScreenshotHelper")
@@ -68,5 +68,5 @@ async def ScreenshotHelper(sid, data):
         await get_screenshot_help(data, sio)
 
     except Exception as exp:
-        await send_response([str(exp), data["query"], type], sio, error=True)
+        await send_response([str(exp), data["query"], data["type"]], sio)
 
