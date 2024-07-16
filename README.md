@@ -11,7 +11,7 @@ Questo branch della repo è composto da due distinte api:
 
 Attualmente askChatGPT non è disponibile.
 
-Entrambe le API sono state sviluppate in python attraverso la libreria [fastapi](https://fastapi.tiangolo.com/) 
+Entrambe le API sono state sviluppate in python attraverso la libreria [fastapi](https://fastapi.tiangolo.com/)
 
 # Getting Started
 
@@ -45,3 +45,11 @@ ALLOWED_HOSTS = []
 
 OPENAI_API_KEY = ""     #API key di openai
 ```
+
+## Come eseguire il backend:
+
+È sufficiente lanciare il comando `uvicorn main:app --host 0.0.0.0 --port 8000` all'interno della cartella del backend
+
+## Logging
+
+È possibile trovare i log di esecuzione dell'app nel file app.log, si può inoltre modificare il livello di logging modificando l'attributo `level` della funzione `logging.basicConfig` nel main.py

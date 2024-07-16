@@ -1,6 +1,7 @@
 python-socketio
 python-dotenv
 pypyodbc
+tabulate
 fastapi
 pandas
 openai

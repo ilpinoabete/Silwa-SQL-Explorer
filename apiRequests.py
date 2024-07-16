@@ -1,10 +1,15 @@
-import json
-import base64
-import globals
 import logging
-from openai import OpenAI, RateLimitError
-from helpers import parse_response, send_response, sanitize_query, get_db_info, append_previous_msgs
 
+import globals
+import pandas as pd
+from helpers import (
+    append_previous_msgs,
+    get_db_info,
+    parse_response,
+    sanitize_query,
+    send_response,
+)
+from openai import OpenAI, RateLimitError
 
 # Set up the logging
 logger = logging.getLogger(__name__)
@@ -13,204 +18,243 @@ logger = logging.getLogger(__name__)
 client = OpenAI()
 
 
-# Function that creates the SQL query with OpenAI API
-def get_sql_query(query_utente, data, db_info, cursor):
-    global previous_msgs
-    
-    uid = data["uid"]
-    model = data["model"]
+def get_sql_query(data, db_info, cursor):
+    """
+    Function that creates the SQL query startung from the data provided in the request and the database informations.
 
-    db_info = str(get_db_info(cursor))
+    :param data: The data provided in the request
+    :param db_info: The database informations retrived by the function get_db_info
+    :param cursor: The cursor to the database retrived by the function get_cursor
+    :return: The SQL query
+
+    """
+
+    global previous_msgs
+
+    model = data["model"]
+    query_utente = data["query"]
+
     user_msgs = data["user"]["sql_search"]
 
-    query = f"SQL database's tables informations:\n{db_info}\nfollowing prompt:\n" + query_utente + globals.SQL_SINTAX
+    query = (
+        f"SQL database's tables informations:\n{db_info}\nfollowing prompt:\n"
+        + query_utente
+        + globals.SQL_SINTAX
+    )
     try:
         # Create the chat completion with the OpenAI APIs
-        response = str(client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant, answer the questions as shortly as possible"},
-                {"role": "assistant", "content": f"{f'This is the message history, use it to get the context of the conversation and to avoid repeating the same errors: {user_msgs}' if user_msgs else ''}. Note that the user may change his questions so use these data only if the topic of the conversation is the same" },
-                {"role": "user", "content": query}
-            ],
-            temperature=0.2
-        ))
-        
-        # Return the sanitized and parsed query 
+        response = str(
+            client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            """
+                        
+                        This is the message history, use it to get the context of the conversation and to avoid repeating the same errors, the user may refer to previous messages, pay attention to the user's questions to understand, if necessary, which message he is referring to.
+                        If it's not specified, it refers to the last message you sent to it.
+                        Note that the columns name may be different from the ones in the database so please refer to the database's information i gave you. Note that the user may change his questions so use these data only if the topic of the conversation is the same"""
+                            if user_msgs != []
+                            else ""
+                        ),
+                    },
+                    {
+                        "role": "system",
+                        "content": (str(user_msgs) if user_msgs != [] else ""),
+                    },
+                    {"role": "system", "content": query},
+                ],
+                temperature=0.1,
+            )
+        )
+
+        # Return the sanitized and parsed query
         return sanitize_query(parse_response(response))
-    
+
     except Exception as exc:
-        logger.error("Error generating SQL query", exc_info=True)
-        return f"Error in get sql query: {str(exc)}"
+        # if and error occurs, log it and return an empty string for the make_sql_request function to handle the error
+        logger.error(f"Error generating SQL query: {exc.args[0]}", exc_info=True)
+        raise Exception(f"Errore nella generazione della query:\n{exc.args[0]}")
 
 
-# Function that uses OpenAI API to comment on the data of the SQL query
-async def comment_response(comment_data, query_sql, data, client_socket, db_info):
+async def comment_response(sql_data, query_sql, data, client_socket, db_info):
+    """
+    Function that uses OpenAI API to create a user friendly comment to the SQL query response starting from starting from the sql query and the data retrived from the database.
+    It sends the response stream to the client_socket and returns the response as a string for it to be added in the messages history.
+
+    :param sql_data: The data retrived from the SQL query
+    :param query_sql: The SQL query used to retrive the data
+    :param data: The data provided in the request
+    :param client_socket: The client socket to send the response
+    :param db_info: The database informations retrived by the function get_db_info
+    :return: The response as a string
+
+    """
+
     global previous_msgs
 
     query_utente = data["query"]
     variant = data["type"]
-    uid = data["uid"]
-    model=data["model"]
-
+    sid = data["sid"]
+    model = data["model"]
     user_msgs = data["user"]["sql_search"]
 
     response = ""
+    first_chunk = True
 
     try:
         if client_socket:
             # Create the chat completion with the OpenAI APIs
             stream = client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=model,
                 messages=[
-                    {"role": "system", "content": "You are a chat assistant"},
-                    {"role": "assistant", "content": f"{f'Questo è lo storico dei messaggi, tienilo in considerazione per la tua rsiposta nel caso largomento della conversazione sia lo stesso: {user_msgs}' if user_msgs != [] else ''}" },
-                    {"role": "user", "content": f"""
-                                                    L'utente ha posto questa domanda {query_utente} ed è stata eseguita questa query per ottenere i dati per rispondere: {query_sql}, utilizza i dati che ti sto per fornire ed eventuali suggerimenti presenti nel commento della query SQL per rispondere in maniera più completa e corretta possibile alla domanda.
-                                                    Se possibile mandami la risposta in piccoli chunk di markdown per formattare la risposta ed inserisci eventiuali dati provenienti dalla query SQL in una tabella.
-                                                    Non inserire la query SQL o riferimenti ad essa nel commento.
-                                                    Se hai bisogno di informazioni sulle varie tabelle del database, le trovi qui {db_info}.     
-                                                    """},
-                    {"role": "assistant", "content": f"Ecco i dati che ho ottenuto {comment_data}"},
+                    {
+                        "role": "system",
+                        "content": (
+                            f"""
+                            
+                            Questo è lo storico dei messaggi, tienilo in considerazione per la tua rsiposta nel caso l'argomento della conversazione sia lo stesso.
+                            L'utente potrebbe fare riferimento a messaggi precendenti, presta attenzione alle domande dell utente per capire, eventualmente, a che messaggio si riferisce; se non è specificato si riferisce all'ultimo messaggio che gli hai inviato.
+                            Tieni presente che l'utente potrebbe fare riferimento alla tabelle presenti nello storico dei messaggi.
+                            Ecco la cronologia dei messaggi: {user_msgs}"""
+                            if user_msgs != []
+                            else ""
+                        ),
+                    },
+                    {
+                        "role": "system",
+                        "content": f"""
+                                                    utente posto domanda {query_utente} eseguita query ottenere dati rispondere: {query_sql}.
+                                                    utilizza i dati per dare una risposta all'utente come se fossi un assistente.
+                                                    non inserire riferimenti alla query effettuata o al database.
+                                                    NON INSERIRE I DATI sottoforma di tabella o lista, l'utente li può già vedere, cerca di dare una risposta alla domanda.
+                                                    """,
+                    },
+                    {
+                        "role": "system",
+                        "content": str(sql_data),
+                    },
                 ],
-                temperature=0.1,
-                stream=True
+                temperature=0.5,
+                stream=True,
             )
 
             # Send each chunk of the response stream to the client
             for chunk in stream:
                 response += str(chunk.choices[0].delta.content)
-                await send_response([chunk.choices[0].delta.content, query_utente, variant], client_socket, 'SqlExplorerResponse')
-                
-            await send_response("---------------------------\n" + response, client_socket, 'SqlExplorerResponse')
+                await send_response(
+                    [
+                        chunk.choices[0].delta.content,
+                        query_utente,
+                        variant,
+                        (
+                            pd.DataFrame(sql_data).to_html()
+                            if (first_chunk and chunk.choices[0].delta.content != "")
+                            else ""
+                        ),
+                    ],
+                    sid,
+                    client_socket,
+                    "SqlExplorerResponse",
+                )
+
+                first_chunk = (
+                    False
+                    if first_chunk and chunk.choices[0].delta.content != ""
+                    else True
+                )
+
+            # Send the final response to the client
+            await send_response(
+                ["DONE", query_utente, variant, ""],
+                sid,
+                client_socket,
+                "SqlExplorerResponse",
+            )
 
             # Return the response for it to be added in the messages history
             return response
-            
+
         else:
             raise Exception("Server Timeout error")
-        
+
     except RateLimitError:
-        logger.error(f"Rate limit error")
-        await send_response(["Ci sono troppi dati a riguardo, puoi essere più specifico?", query_utente, variant], client_socket)
+        # If the rate limit is reached, log the error and send an error message to the client
+        logger.error("Rate limit error", exc_info=True)
+        raise Exception("Ci sono troppi dati a riguardo, puoi essere più specifico?")
 
     except Exception as exc:
-        logger.error(f"Error generating comment response for query: {query_utente} with data: {comment_data}", exc_info=True)
-        return f"Error in comment: {str(exc)}"
+        # Log the general error and send and raise an error
+        logger.error(f"Error generating comment response: {exc.args[0]}", exc_info=True)
+        raise Exception(f"Errore nella generazione della risposta: {exc.args[0]}")
 
 
-# Function that executes the SQL request
 async def make_sql_request(data, api_cursor, sio):
+    """
+    This is the enpoint of the SqlExplorer event. It receives the data from the client_socket and uses the OpenAI API to generate a SQL query and execute it on the database.
+    It also calls the comment_response function to generate a user friendly comment to the SQL query response and adds it to the message history.
+
+    :param data: The data provided in the request
+    :param api_cursor: The cursor to the database retrived by the function get_cursor
+    :param sio: The client socket to send the response
+
+    """
+
     # Initialize used variables
     query_utente = data["query"]
     variant = data["type"]
     user = data["user"]
+    sid = data["sid"]
+
     cursor = api_cursor
     client_socket = sio
-    db_info = str(get_db_info(cursor))
-    
-    # Sanity check
-    if query_utente == "":
-        send_response("Empty query", sio)
-        raise Exception("Empty query")
-    
+
     try:
-        # Get the SQL query
-        query_sql = get_sql_query(query_utente, data, db_info, cursor)
 
-        # If the query is empty of if it contains the drop or create keywords, return an error message
-        if query_sql == '':
+        db_info = str(get_db_info(cursor))
+
+        # Sanity check
+        if query_utente == "":
+            send_response("Empty query", sid, sio)
             raise Exception("Empty query")
-        
-        elif not query_sql:
-            raise Exception("The query contains dangerous or forbidden keywords")
 
-        # Execute the query and create a JSON with its results
-        results = cursor.execute(query_sql).fetchall()
+        # Get the SQL query
+        query_sql = get_sql_query(data, db_info, cursor)
+
+        # Execute the query and create a JSON with its results if it's not empty
+        try:
+            results = cursor.execute(query_sql).fetchall()
+        except Exception as exc:
+            raise Exception(
+                f"C'è stato un errore nell'esecuzione della query: {exc.args[0]}"
+            )
+
+        if results == []:
+            raise Exception("Nessun risultato trovato")
+
         columns = [column[0] for column in cursor.description]
-        query_data = {
-            "data": []
-            }
+        query_data = {column: [] for column in columns}
 
         for row in results:
-            query_data["data"].append(dict(zip(columns, row)))
-
-        json_data = json.dumps(query_data, indent=4, sort_keys=True, default=str)
+            for column, value in zip(columns, row):
+                query_data[column].append(value)
 
         # Create the response and append the request to the messages history
-        commented_response = await comment_response(json_data, query_sql, data, client_socket, db_info)
+        await comment_response(query_data, query_sql, data, client_socket, db_info)
 
         history_data = {
-            "user" : user,
-            "query_utente" : query_utente,
-            "query_sql" : query_sql,
-            "response" : commented_response,
-            "img" : False
+            "user": user,
+            "query_utente": query_utente,
+            "query_sql": query_sql,
+            "table": query_data,
         }
 
         append_previous_msgs(history_data)
-
-        return commented_response
 
     except Exception as exc:
-        logger.error(f"Error executing SQL request for query: {query_utente}", exc_info=True)
-        append_previous_msgs(history_data)
-        await comment_response([f"Error in SQL request: {str(exc)}\nThe query was: {query_sql}", query_utente, variant], client_socket, error=True)
-
-
-# Function that uses OpenAI API to generate a screenshot helper
-async def get_screenshot_help(data, client_socket):
-    # Sanity check
-    if data["query"] == "":
-        send_response("Empty query", client_socket)
-        raise Exception("Empty query")
-    
-    
-    response = ""
-    with open(data["img"], "rb") as img_file:
-        b64_img = base64.b64encode(img_file.read()).decode("utf-8")
-
-
-    # Create the chat completion with the OpenAI APIs
-    stream = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{b64_img}",
-                        "detail": "auto"
-                    },
-                },
-                {
-                    "type": "text",
-                    "text": data["documentation"] + f"Con riferimento {'alla documentazione che ti ho appena fornito e' if data["documentation"] != '' else ''} alle foto che ti ho inviato, puoi creare una guida passo passo con precisi riferimenti all'interfaccia grafica del software che sto utilizzando per risolvere il problema dell'utente o rispondere alla sua domanda? Invia la risposta in piccoli chunk in markdown" + data["query"]
-                },
-            ],
-        }
-    ],
-    temperature=data["temperature"],
-    stream=True,
-    )
-
-    for chunk in stream:
-        response += str(chunk.choices[0].delta.content)
-        await send_response([chunk.choices[0].delta.content, data["query"], data["type"]], client_socket, 'ScreenshotHelperResponse')
-
-    history_data = {
-            "user" : data["user"],
-            "query_utente" : data["query"],
-            "query_sql" : "",
-            "response" : response,
-            "img" : data["img"]
-        }
-    
-    append_previous_msgs(history_data)
-    
-    await send_response("---------------------------\n" + response, client_socket, 'ScreenshotHelperResponse')
-        
-    return response
-
+        # Log the error and send the error message to the client
+        logger.error(
+            f"Error executing SQL request for query: {query_utente}", exc_info=True
+        )
+        raise Exception(exc.args[0])
